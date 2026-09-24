@@ -132,3 +132,16 @@ body{font-size:15px;line-height:1.55}
   .login-card h1{font-size:26px}
   .login-photo{background-position:center}
 }
+
+
+/* Login: preserve the original compact card and add travel wallpaper behind it */
+.login-shell{position:relative;min-height:100vh;display:grid;place-items:center;overflow:hidden;background:var(--bg);padding:20px}
+.login-wallpaper{position:absolute;inset:0;background-image:linear-gradient(rgba(0,0,0,.38),rgba(0,0,0,.38)),url("https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=2400&q=85");background-size:cover;background-position:center}
+.login-content{position:relative;z-index:1;width:100%;display:grid;place-items:center}
+.login-card{width:390px;max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:30px;box-shadow:var(--shadow)}
+.login-brand{padding:0 0 22px;justify-content:center}
+.login-brand .brand-logo{max-width:315px;width:100%;height:auto;object-fit:contain}
+.login-card h1{font-size:24px;margin:0 0 6px;line-height:1.2}
+.login-card .field{margin-bottom:15px}
+.login-card .field input{background:var(--panel2)}
+@media(max-width:650px){.login-shell{padding:14px}.login-card{padding:24px 20px}.login-brand .brand-logo{max-width:280px}}
