@@ -246,7 +246,6 @@ def patch_lead(lead_id:str,p:LeadPatch,db:Session=Depends(get_db),u=Depends(curr
 @app.post('/api/leads/import')
 def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)):
     # Import is an append/upsert operation. It never deletes unrelated existing leads.
-    admin_only(u)
     stats={'added':0,'updated':0,'skipped':0,'errors':[]}
     stages={x.name.strip().lower():x for x in db.scalars(select(Stage).where(Stage.active==True)).all()}
     users={x.name.strip().lower():x for x in db.scalars(select(User).where(User.active==True)).all()}
@@ -367,10 +366,10 @@ def reset_user_password(user_id:str, password:str, db:Session=Depends(get_db), u
 
 @app.post('/api/stages')
 def add_stage(p:StageIn,db:Session=Depends(get_db),u=Depends(current_user)):
-     mx=db.scalar(select(func.max(Stage.position))) or -1; s=Stage(id='s_'+secrets.token_hex(7),name=p.name.strip(),color=p.color,position=mx+1); db.add(s); db.commit(); return stage_out(s)
+    mx=db.scalar(select(func.max(Stage.position))) or -1; s=Stage(id='s_'+secrets.token_hex(7),name=p.name.strip(),color=p.color,position=mx+1); db.add(s); db.commit(); return stage_out(s)
 @app.patch('/api/stages/{sid}')
 def edit_stage(sid:str,p:StageIn,db:Session=Depends(get_db),u=Depends(current_user)):
-     s=db.get(Stage,sid)
+    s=db.get(Stage,sid)
     if not s: raise HTTPException(404,'Stage not found')
     s.name=p.name.strip(); s.color=p.color; db.commit(); return stage_out(s)
 @app.delete('/api/stages/{sid}')
@@ -382,7 +381,6 @@ def remove_stage(sid:str,db:Session=Depends(get_db),u=Depends(current_user)):
     replacement=active[0]; db.query(Lead).filter(Lead.stage_id==sid).update({'stage_id':replacement.id}); s.active=False; db.commit(); return {'ok':True}
 @app.post('/api/stages/reorder')
 def reorder_stages(p:Reorder,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u)
     for i,sid in enumerate(p.ids):
         s=db.get(Stage,sid)
         if s: s.position=i
@@ -390,10 +388,10 @@ def reorder_stages(p:Reorder,db:Session=Depends(get_db),u=Depends(current_user))
 
 @app.post('/api/tags')
 def add_tag(p:TagIn,db:Session=Depends(get_db),u=Depends(current_user)):
-     t=Tag(id='t_'+secrets.token_hex(7),name=p.name.strip(),color=p.color); db.add(t); db.commit(); return tag_out(t)
+    t=Tag(id='t_'+secrets.token_hex(7),name=p.name.strip(),color=p.color); db.add(t); db.commit(); return tag_out(t)
 @app.patch('/api/tags/{tid}')
 def edit_tag(tid:str,p:TagIn,db:Session=Depends(get_db),u=Depends(current_user)):
-     t=db.get(Tag,tid)
+    t=db.get(Tag,tid)
     if not t: raise HTTPException(404,'Tag not found')
     t.name=p.name.strip(); t.color=p.color; db.commit(); return tag_out(t)
 @app.delete('/api/tags/{tid}')
@@ -404,7 +402,7 @@ def remove_tag(tid:str,db:Session=Depends(get_db),u=Depends(current_user)):
 
 @app.delete('/api/leads/{lead_id}')
 def delete_lead(lead_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
-     l=db.get(Lead,lead_id)
+    l=db.get(Lead,lead_id)
     if not l: raise HTTPException(404,'Lead not found')
     db.delete(l); db.commit(); return {'ok':True}
 
