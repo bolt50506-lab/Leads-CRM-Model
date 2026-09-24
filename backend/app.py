@@ -272,7 +272,12 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
             owner=u if owner_value=='' else None
         tag_names=[x.strip().lower() for x in str(norm.get('tags','')).split(',') if x.strip()]
         tag_objs=[tags[x] for x in tag_names if x in tags]
-        vals=dict(name=name,phone=phone,email=email,company=str(norm.get('company','')).strip(),source=str(norm.get('source','Import')).strip() or 'Import',notes=str(norm.get('notes','')).strip(),stage_id=st.id,assigned_user_id=owner.id if owner else u.id)
+        # Coerce spreadsheet values to safe strings and respect DB column limits.
+        name=name[:160]; phone=phone[:50]; email=email[:180]
+        company=str(norm.get('company','') or '').strip()[:160]
+        source=str(norm.get('source','Import') or '').strip()[:100] or 'Import'
+        notes=str(norm.get('notes','') or '').strip()
+        vals=dict(name=name,phone=phone,email=email,company=company,source=source,notes=notes,stage_id=st.id,assigned_user_id=owner.id if owner else u.id)
         if existing:
             # Only overwrite fields supplied by the incoming row; preserve existing data otherwise.
             for k,v in vals.items():
@@ -286,7 +291,12 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
             l=Lead(id='l_'+secrets.token_hex(10),**vals); l.tags=tag_objs; db.add(l); db.flush(); db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Imported from file')); stats['added']+=1
             if email: existing_by_email[email]=l
             if phone: existing_by_phone[phone]=l
-    db.commit(); return stats
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(400, f'Import could not be saved: {type(exc).__name__}: {exc}')
+    return stats
 
 @app.get('/api/notifications')
 def get_notifications(db:Session=Depends(get_db),u=Depends(current_user)):
