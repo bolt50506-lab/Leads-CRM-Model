@@ -84,3 +84,26 @@ td small{font-size:11px}
 .board-scroll-top::-webkit-scrollbar-thumb{background:var(--muted);border-radius:8px}
 .board{scrollbar-width:none}
 .board::-webkit-scrollbar{display:none}
+
+/* Professional portal typography and spacing */
+body{font-size:15px;line-height:1.55}
+.content{padding:32px 34px 40px}
+.head,.pagehero{gap:24px;margin-bottom:24px}
+.head h1,.pagehero h1{font-size:30px;line-height:1.2;margin:3px 0 8px;font-weight:800}
+.head p,.pagehero p{font-size:15px;line-height:1.6}
+.section-label{font-size:11px;letter-spacing:.06em;margin:22px 2px 12px}
+.nav{font-size:14px;padding:11px 12px;margin:3px 0}
+.btn{font-size:14px;padding:10px 14px}
+.topbar{height:72px;padding:0 30px;gap:16px}
+.global-search{padding:11px 14px}.global-search input{font-size:15px}
+.kpis{gap:14px;margin-bottom:24px}.kpi{padding:16px 17px;border-radius:14px}.kpi label{font-size:10px;margin-bottom:8px}.kpi strong{font-size:24px}
+.toolbar{gap:12px;margin-bottom:14px}.select{padding:9px 11px}.seg button{padding:8px 12px}
+.board{gap:14px;padding:2px 2px 14px}.col{min-width:292px;width:292px;padding:12px;border-radius:14px}.colhead{padding:5px 5px 11px}.stage-title{font-size:13px}.count{font-size:11px;padding:4px 9px}
+.leadcard{padding:14px;margin-bottom:10px;border-radius:12px}.ctop{gap:10px}.ctop b{display:block;font-size:15px;font-weight:800;line-height:1.35}.client-name{font-size:13px;font-weight:650;line-height:1.4;margin-top:3px;color:var(--muted)}.lead-phone{font-size:13px;font-weight:750;line-height:1.4;margin-top:6px;color:var(--accent2)}.meta{font-size:10px;margin-top:10px}.tag{font-size:9px;padding:4px 7px}.tags{margin-top:9px;gap:5px}
+.tablewrap{border-radius:14px}th,td{padding:14px 15px}th{font-size:10px}td{font-size:13px}td small{font-size:11px;margin-top:4px}.table-phone{font-size:14px;font-weight:750}
+.dhead{padding:26px}.dhead h2{font-size:23px}.dhead p{font-size:14px}.dactions{padding:14px 26px}.dbody{padding:24px}.field{margin-bottom:18px}.field label{font-size:13px}.field input,.field select,.field textarea{font-size:14px;padding:10px 12px}
+.form{gap:14px}.form label{font-size:13px}.form input,.form select,.form textarea{font-size:14px}
+.modal{padding:26px}.modal h2{font-size:22px}.modal p{font-size:14px;line-height:1.55}
+.empty-state{font-size:14px}
+@media(max-width:900px){.content{padding:24px 20px 32px}.topbar{padding:0 20px}.col{min-width:280px;width:280px}}
+@media(max-width:600px){.content{padding:20px 14px 28px}.head h1,.pagehero h1{font-size:25px}.topbar{height:64px;padding:0 14px}.global-search{max-width:none}.leadcard{padding:13px}.ctop b{font-size:14px}.client-name,.lead-phone{font-size:12.5px}}
