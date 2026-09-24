@@ -68,3 +68,19 @@ td small{font-size:11px}
 .usertext b{font-size:13px}
 .usertext small{font-size:11px}
 .toast{font-size:13px}
+
+
+/* Lead readability and top horizontal board control */
+.lead-primary{min-width:0;flex:1}
+.ctop b{display:block;font-size:15px;font-weight:750;line-height:1.35;color:var(--text)}
+.client-name{font-size:13px;font-weight:650;color:var(--text);margin-top:3px;line-height:1.4}
+.lead-phone{font-size:13px;font-weight:700;color:var(--accent2);margin-top:6px;line-height:1.4}
+.company{display:none}
+.table-phone{font-size:13px;font-weight:700;color:var(--text)}
+.board-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 2px 6px;border-radius:8px;background:var(--soft);scrollbar-width:auto}
+.board-scroll-top>div{height:1px}
+.board-scroll-top::-webkit-scrollbar{height:10px}
+.board-scroll-top::-webkit-scrollbar-track{background:var(--soft);border-radius:8px}
+.board-scroll-top::-webkit-scrollbar-thumb{background:var(--muted);border-radius:8px}
+.board{scrollbar-width:none}
+.board::-webkit-scrollbar{display:none}
