@@ -323,6 +323,17 @@ def create_user(p:UserCreate, db:Session=Depends(get_db), u=Depends(current_user
     db.add(user); db.commit(); db.refresh(user)
     return {'user':user_out(user),'credentials':{'agentId':user.agent_code,'email':user.email,'password':p.password}}
 
+@app.delete('/api/users/{user_id}')
+def delete_user(user_id:str, db:Session=Depends(get_db), u=Depends(current_user)):
+    admin_only(u)
+    target=db.get(User,user_id)
+    if not target or target.role.lower() in {'administrator','admin'}:
+        raise HTTPException(404,'Agent not found')
+    admin=db.scalar(select(User).where(User.role.in_(['Administrator','Admin'])))
+    if admin:
+        db.query(Lead).filter(Lead.assigned_user_id==target.id).update({'assigned_user_id':admin.id})
+    db.delete(target); db.commit(); return {'ok':True}
+    
 @app.patch('/api/users/{user_id}/active')
 def set_user_active(user_id:str, active:bool, db:Session=Depends(get_db), u=Depends(current_user)):
     admin_only(u)
@@ -374,7 +385,7 @@ def edit_stage(sid:str,p:StageIn,db:Session=Depends(get_db),u=Depends(current_us
     s.name=p.name.strip(); s.color=p.color; db.commit(); return stage_out(s)
 @app.delete('/api/stages/{sid}')
 def remove_stage(sid:str,db:Session=Depends(get_db),u=Depends(current_user)):
-     s=db.get(Stage,sid)
+    s=db.get(Stage,sid)
     if not s: raise HTTPException(404,'Stage not found')
     active=db.scalars(select(Stage).where(Stage.active==True,Stage.id!=sid)).all()
     if not active: raise HTTPException(400,'At least one stage is required')
@@ -396,7 +407,7 @@ def edit_tag(tid:str,p:TagIn,db:Session=Depends(get_db),u=Depends(current_user))
     t.name=p.name.strip(); t.color=p.color; db.commit(); return tag_out(t)
 @app.delete('/api/tags/{tid}')
 def remove_tag(tid:str,db:Session=Depends(get_db),u=Depends(current_user)):
-     t=db.get(Tag,tid)
+    t=db.get(Tag,tid)
     if not t: raise HTTPException(404,'Tag not found')
     db.execute(lead_tags.delete().where(lead_tags.c.tag_id==tid)); db.delete(t); db.commit(); return {'ok':True}
 
