@@ -150,7 +150,8 @@ def admin_only(u):
     return u
 
 def can_access_lead(l, u):
-    return u.role.lower() in {'administrator','admin'} or l.assigned_user_id == u.id
+    # Shared CRM workspace: every authenticated user can view and work on every lead.
+    return True
 
 def require_lead(l, u):
     if not l or not can_access_lead(l,u): raise HTTPException(404,'Lead not found')
