@@ -79,6 +79,15 @@ class Lead(Base):
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     tags = relationship('Tag', secondary=lead_tags, lazy='joined')
 
+class Notification(Base):
+    __tablename__='notifications'
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    lead_id: Mapped[Optional[str]] = mapped_column(ForeignKey('leads.id', ondelete='CASCADE'), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    read: Mapped[bool] = mapped_column(default=False)
+
 class Activity(Base):
     __tablename__='activities'
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
@@ -165,6 +174,7 @@ class StageIn(BaseModel): name:str; color:str='#64748b'
 class TagIn(BaseModel): name:str; color:str='#64748b'
 class Reorder(BaseModel): ids:list[str]
 class ImportIn(BaseModel): rows:list[dict]
+class NotificationRead(BaseModel): ids:list[str]=[]
 
 app=FastAPI(title='LeadFlow CRM API', version='2.0.0')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=False, allow_methods=['*'], allow_headers=['*'])
@@ -187,11 +197,7 @@ def bootstrap(db:Session=Depends(get_db), u=Depends(current_user)):
     stages=db.scalars(select(Stage).where(Stage.active==True).order_by(Stage.position)).all()
     tags=db.scalars(select(Tag).order_by(Tag.name)).all()
     stmt=select(Lead).order_by(Lead.created_at.desc())
-    if u.role.lower() not in {'administrator','admin'}:
-        stmt=stmt.where(Lead.assigned_user_id==u.id)
     leads=db.scalars(stmt).unique().all()
-    if u.role.lower() not in {'administrator','admin'}:
-        users=[u]
     return {'users':[user_out(x) for x in users], 'stages':[stage_out(x) for x in stages], 'tags':[tag_out(x) for x in tags], 'leads':[lead_out(x,db,u) for x in leads]}
 
 @app.get('/api/leads/{lead_id}/activities')
@@ -208,26 +214,33 @@ def add_activity(lead_id:str,payload:ActivityIn,db:Session=Depends(get_db),u=Dep
 
 @app.post('/api/leads')
 def create_lead(p:LeadIn,db:Session=Depends(get_db),u=Depends(current_user)):
-    assigned = p.assigned_user_id if u.role.lower() in {'administrator','admin'} and p.assigned_user_id else u.id
+    assigned = p.assigned_user_id or u.id
     ensure_refs(db,p.stage_id,assigned,p.tag_ids)
     if not (p.name.strip() or p.phone.strip() or p.email.strip()): raise HTTPException(400,'At least a name, phone, or email is required')
     l=Lead(id='l_'+secrets.token_hex(10),name=p.name.strip(),phone=normalize_phone(p.phone),email=normalize_email(p.email),company=p.company.strip(),source=p.source.strip(),notes=p.notes.strip(),stage_id=p.stage_id,assigned_user_id=assigned)
     l.tags=db.scalars(select(Tag).where(Tag.id.in_(p.tag_ids))).all() if p.tag_ids else []
-    db.add(l); db.flush(); db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Lead created')); db.commit(); db.refresh(l); return lead_out(l,db,u)
+    db.add(l); db.flush(); db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Lead created'))
+    if assigned != u.id:
+        db.add(Notification(id='n_'+secrets.token_hex(10),user_id=assigned,lead_id=l.id,text=u.name+' assigned lead “'+l.name+'” to you'))
+    db.commit(); db.refresh(l); return lead_out(l,db,u)
 
 @app.patch('/api/leads/{lead_id}')
 def patch_lead(lead_id:str,p:LeadPatch,db:Session=Depends(get_db),u=Depends(current_user)):
     l=require_lead(db.get(Lead,lead_id),u)
     data=p.model_dump(exclude_unset=True); tag_ids=data.pop('tag_ids',None)
-    if u.role.lower() not in {'administrator','admin'} and 'assigned_user_id' in data: raise HTTPException(403,'Agents cannot reassign leads')
     if 'stage_id' in data or 'assigned_user_id' in data: ensure_refs(db,data.get('stage_id',l.stage_id),data.get('assigned_user_id',l.assigned_user_id),[])
+    old_assignee=l.assigned_user_id
     if 'phone' in data: data['phone']=normalize_phone(data['phone'])
     if 'email' in data: data['email']=normalize_email(data['email'])
     for k,v in data.items(): setattr(l,k,v.strip() if isinstance(v,str) else v)
     if tag_ids is not None: l.tags=db.scalars(select(Tag).where(Tag.id.in_(tag_ids))).all() if tag_ids else []
     l.last_activity_at=datetime.now(timezone.utc)
     if 'stage_id' in data: db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Stage changed'))
-    if 'assigned_user_id' in data: db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Lead reassigned'))
+    if 'assigned_user_id' in data:
+        target=db.get(User,data['assigned_user_id'])
+        db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Lead assigned to '+target.name))
+        if data['assigned_user_id'] != u.id and data['assigned_user_id'] != old_assignee:
+            db.add(Notification(id='n_'+secrets.token_hex(10),user_id=data['assigned_user_id'],lead_id=l.id,text=u.name+' assigned lead “'+l.name+'” to you'))
     db.commit(); db.refresh(l); return lead_out(l,db,u)
 
 @app.post('/api/leads/import')
@@ -275,9 +288,19 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
             if phone: existing_by_phone[phone]=l
     db.commit(); return stats
 
+@app.get('/api/notifications')
+def get_notifications(db:Session=Depends(get_db),u=Depends(current_user)):
+    rows=db.scalars(select(Notification).where(Notification.user_id==u.id).order_by(Notification.created_at.desc()).limit(50)).all()
+    return [{'id':n.id,'text':n.text,'leadId':n.lead_id,'createdAt':n.created_at.isoformat() if n.created_at else '','read':n.read} for n in rows]
+
+@app.post('/api/notifications/read')
+def read_notifications(p:NotificationRead,db:Session=Depends(get_db),u=Depends(current_user)):
+    rows=db.scalars(select(Notification).where(Notification.user_id==u.id,Notification.id.in_(p.ids))).all() if p.ids else db.scalars(select(Notification).where(Notification.user_id==u.id,Notification.read==False)).all()
+    for n in rows: n.read=True
+    db.commit(); return {'ok':True}
+
 @app.get('/api/users')
 def get_users(db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u)
     return [user_out(x) for x in db.scalars(select(User).order_by(User.name)).all()]
 
 @app.post('/api/users')
@@ -344,15 +367,15 @@ def reset_user_password(user_id:str, password:str, db:Session=Depends(get_db), u
 
 @app.post('/api/stages')
 def add_stage(p:StageIn,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); mx=db.scalar(select(func.max(Stage.position))) or -1; s=Stage(id='s_'+secrets.token_hex(7),name=p.name.strip(),color=p.color,position=mx+1); db.add(s); db.commit(); return stage_out(s)
+     mx=db.scalar(select(func.max(Stage.position))) or -1; s=Stage(id='s_'+secrets.token_hex(7),name=p.name.strip(),color=p.color,position=mx+1); db.add(s); db.commit(); return stage_out(s)
 @app.patch('/api/stages/{sid}')
 def edit_stage(sid:str,p:StageIn,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); s=db.get(Stage,sid)
+     s=db.get(Stage,sid)
     if not s: raise HTTPException(404,'Stage not found')
     s.name=p.name.strip(); s.color=p.color; db.commit(); return stage_out(s)
 @app.delete('/api/stages/{sid}')
 def remove_stage(sid:str,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); s=db.get(Stage,sid)
+     s=db.get(Stage,sid)
     if not s: raise HTTPException(404,'Stage not found')
     active=db.scalars(select(Stage).where(Stage.active==True,Stage.id!=sid)).all()
     if not active: raise HTTPException(400,'At least one stage is required')
@@ -367,21 +390,21 @@ def reorder_stages(p:Reorder,db:Session=Depends(get_db),u=Depends(current_user))
 
 @app.post('/api/tags')
 def add_tag(p:TagIn,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); t=Tag(id='t_'+secrets.token_hex(7),name=p.name.strip(),color=p.color); db.add(t); db.commit(); return tag_out(t)
+     t=Tag(id='t_'+secrets.token_hex(7),name=p.name.strip(),color=p.color); db.add(t); db.commit(); return tag_out(t)
 @app.patch('/api/tags/{tid}')
 def edit_tag(tid:str,p:TagIn,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); t=db.get(Tag,tid)
+     t=db.get(Tag,tid)
     if not t: raise HTTPException(404,'Tag not found')
     t.name=p.name.strip(); t.color=p.color; db.commit(); return tag_out(t)
 @app.delete('/api/tags/{tid}')
 def remove_tag(tid:str,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); t=db.get(Tag,tid)
+     t=db.get(Tag,tid)
     if not t: raise HTTPException(404,'Tag not found')
     db.execute(lead_tags.delete().where(lead_tags.c.tag_id==tid)); db.delete(t); db.commit(); return {'ok':True}
 
 @app.delete('/api/leads/{lead_id}')
 def delete_lead(lead_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
-    admin_only(u); l=db.get(Lead,lead_id)
+     l=db.get(Lead,lead_id)
     if not l: raise HTTPException(404,'Lead not found')
     db.delete(l); db.commit(); return {'ok':True}
 
