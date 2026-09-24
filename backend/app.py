@@ -247,66 +247,73 @@ def patch_lead(lead_id:str,p:LeadPatch,db:Session=Depends(get_db),u=Depends(curr
 @app.post('/api/leads/import')
 def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)):
     stats={'added':0,'updated':0,'skipped':0,'errors':[]}
-    stages={x.name.strip().lower():x for x in db.scalars(select(Stage).where(Stage.active==True)).all()}
-    active_users=db.scalars(select(User).where(User.active==True)).all()
-    users={x.name.strip().lower():x for x in active_users}
-    users.update({str(x.agent_code or '').strip().lower():x for x in active_users if str(x.agent_code or '').strip()})
-    tags={x.name.strip().lower():x for x in db.scalars(select(Tag)).all()}
-    existing_by_email={normalize_email(x.email):x for x in db.scalars(select(Lead)).all() if normalize_email(x.email)}
-    existing_by_phone={normalize_phone(x.phone):x for x in db.scalars(select(Lead)).all() if normalize_phone(x.phone)}
-    seen=set()
-    default_stage=next(iter(stages.values()),None)
-    if not default_stage: raise HTTPException(400,'No active stage exists')
-    for i,row in enumerate(p.rows,1):
+    try:
+        stages={x.name.strip().lower():x for x in db.scalars(select(Stage).where(Stage.active==True)).all() if x.name}
+        active_users=db.scalars(select(User).where(User.active==True)).all()
+        users={x.name.strip().lower():x for x in active_users if x.name}
+        users.update({str(x.agent_code or '').strip().lower():x for x in active_users if str(x.agent_code or '').strip()})
+        tags={x.name.strip().lower():x for x in db.scalars(select(Tag)).all() if x.name}
+        existing_by_email={normalize_email(x.email):x for x in db.scalars(select(Lead)).all() if normalize_email(x.email)}
+        existing_by_phone={normalize_phone(x.phone):x for x in db.scalars(select(Lead)).all() if normalize_phone(x.phone)}
+        seen=set()
+        default_stage=next(iter(stages.values()),None)
+        if not default_stage: raise HTTPException(400,'No active stage exists')
+        for i,row in enumerate(p.rows,1):
+            try:
+                if not isinstance(row,dict): raise ValueError('Spreadsheet row is not an object')
+                norm={normalize_key(k):v for k,v in row.items()}
+                name=str(norm.get('name','') or '').strip()
+                phone=normalize_phone(str(norm.get('phone','') or '').strip())
+                email=normalize_email(str(norm.get('email','') or '').strip())
+                if not (name or phone or email):
+                    stats['skipped']+=1; stats['errors'].append({'row':i,'message':'At least name, phone, or email is required'}); continue
+                key=f'e:{email}' if email else f'p:{phone}' if phone else f'n:{name.lower()}'
+                if key in seen:
+                    stats['skipped']+=1; stats['errors'].append({'row':i,'message':'Duplicate row in this import'}); continue
+                seen.add(key)
+                existing=(existing_by_email.get(email) if email else None) or (existing_by_phone.get(phone) if phone else None)
+                st=stages.get(str(norm.get('stage','') or '').strip().lower()) or default_stage
+                owner_value=str(norm.get('assigneduser',norm.get('agentid','')) or '').strip().lower()
+                owner=users.get(owner_value) or (u if not owner_value else None)
+                tag_names=[x.strip().lower() for x in str(norm.get('tags','') or '').split(',') if x.strip()]
+                tag_objs=[tags[x] for x in tag_names if x in tags]
+                vals=dict(
+                    name=name[:160], phone=phone[:50], email=email[:180],
+                    company=str(norm.get('company','') or '').strip()[:160],
+                    source=str(norm.get('source','Import') or '').strip()[:100] or 'Import',
+                    notes=str(norm.get('notes','') or '').strip(),
+                    stage_id=st.id, assigned_user_id=owner.id if owner else u.id
+                )
+                # Save each row inside a SAVEPOINT so one bad row cannot poison the whole import session.
+                with db.begin_nested():
+                    if existing:
+                        for k,v in vals.items():
+                            if v not in ('',None) or k in {'stage_id','assigned_user_id'}: setattr(existing,k,v)
+                        if tag_objs: existing.tags=tag_objs
+                        existing.last_activity_at=datetime.now(timezone.utc)
+                        db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=existing.id,user_id=u.id,text='Updated via import'))
+                        stats['updated']+=1
+                    else:
+                        l=Lead(id='l_'+secrets.token_hex(10),**vals); l.tags=tag_objs
+                        db.add(l); db.flush()
+                        db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Imported from file'))
+                        stats['added']+=1
+                        if email: existing_by_email[email]=l
+                        if phone: existing_by_phone[phone]=l
+            except Exception as exc:
+                stats['skipped']+=1
+                stats['errors'].append({'row':i,'message':f'{type(exc).__name__}: {exc}'})
         try:
-            if not isinstance(row,dict): raise ValueError('Spreadsheet row is not an object')
-            norm={normalize_key(k):v for k,v in row.items()}
-            name=str(norm.get('name','') or '').strip()
-            phone=normalize_phone(str(norm.get('phone','') or '').strip())
-            email=normalize_email(str(norm.get('email','') or '').strip())
-            if not (name or phone or email):
-                stats['skipped']+=1; stats['errors'].append({'row':i,'message':'At least name, phone, or email is required'}); continue
-            key=f'e:{email}' if email else f'p:{phone}' if phone else f'n:{name.lower()}'
-            if key in seen:
-                stats['skipped']+=1; stats['errors'].append({'row':i,'message':'Duplicate row in this import'}); continue
-            seen.add(key)
-            existing=(existing_by_email.get(email) if email else None) or (existing_by_phone.get(phone) if phone else None)
-            st=stages.get(str(norm.get('stage','') or '').strip().lower()) or default_stage
-            owner_value=str(norm.get('assigneduser',norm.get('agentid','')) or '').strip().lower()
-            owner=users.get(owner_value) or (u if not owner_value else None)
-            tag_names=[x.strip().lower() for x in str(norm.get('tags','') or '').split(',') if x.strip()]
-            tag_objs=[tags[x] for x in tag_names if x in tags]
-            vals=dict(
-                name=name[:160], phone=phone[:50], email=email[:180],
-                company=str(norm.get('company','') or '').strip()[:160],
-                source=str(norm.get('source','Import') or '').strip()[:100] or 'Import',
-                notes=str(norm.get('notes','') or '').strip(),
-                stage_id=st.id, assigned_user_id=owner.id if owner else u.id
-            )
-            if existing:
-                for k,v in vals.items():
-                    if v not in ('',None) or k in {'stage_id','assigned_user_id'}: setattr(existing,k,v)
-                if tag_objs: existing.tags=tag_objs
-                existing.last_activity_at=datetime.now(timezone.utc)
-                db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=existing.id,user_id=u.id,text='Updated via import'))
-                stats['updated']+=1
-            else:
-                l=Lead(id='l_'+secrets.token_hex(10),**vals); l.tags=tag_objs
-                db.add(l); db.flush()
-                db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Imported from file'))
-                stats['added']+=1
-                if email: existing_by_email[email]=l
-                if phone: existing_by_phone[phone]=l
+            db.commit()
         except Exception as exc:
             db.rollback()
-            stats['skipped']+=1
-            stats['errors'].append({'row':i,'message':f'{type(exc).__name__}: {exc}'})
-    try:
-        db.commit()
+            raise HTTPException(400, f'Import could not be saved: {type(exc).__name__}: {exc}')
+        return stats
+    except HTTPException:
+        raise
     except Exception as exc:
         db.rollback()
-        raise HTTPException(400, f'Import could not be saved: {type(exc).__name__}: {exc}')
-    return stats
+        raise HTTPException(400, f'Import failed: {type(exc).__name__}: {exc}')
 
 @app.get('/api/notifications')
 def get_notifications(db:Session=Depends(get_db),u=Depends(current_user)):
