@@ -77,7 +77,7 @@ class Lead(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    tags = relationship('Tag', secondary=lead_tags, lazy='joined')
+    tags = relationship('Tag', secondary=lead_tags, lazy='selectin')
 
 class Notification(Base):
     __tablename__='notifications'
@@ -254,7 +254,7 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
         users.update({str(x.agent_code or '').strip().lower():x for x in active_users if str(x.agent_code or '').strip()})
         tags={x.name.strip().lower():x for x in db.scalars(select(Tag)).all() if x.name}
         existing_by_email={normalize_email(x.email):x for x in db.execute(select(Lead)).unique().scalars().all() if normalize_email(x.email)}
-        existing_by_phone={normalize_phone(x.phone):x for x in db.scalars(select(Lead)).all() if normalize_phone(x.phone)}
+        existing_by_phone={normalize_phone(x.phone):x for x in db.execute(select(Lead)).unique().scalars().all() if normalize_phone(x.phone)}
         seen=set()
         default_stage=next(iter(stages.values()),None)
         if not default_stage: raise HTTPException(400,'No active stage exists')
