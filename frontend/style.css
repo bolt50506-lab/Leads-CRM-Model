@@ -16,3 +16,6 @@ h1,h2,h3,p,label,th,td,.nav,.btn,input,select,textarea{letter-spacing:normal}
 input,select,textarea{line-height:1.45}
 ::placeholder{color:var(--muted);opacity:.78}
 .nav .ico{font-size:17px}
+
+@media(max-width:1000px){.sidebar .brand{justify-content:center;padding-left:0;padding-right:0}.sidebar .brand-logo{width:44px;height:44px;max-width:none;object-fit:cover;object-position:left center;border-radius:10px}}
+@media(max-width:650px){.login-brand .brand-logo{width:100%;height:auto;max-width:315px;object-fit:contain}.login-brand{padding-bottom:20px}}
