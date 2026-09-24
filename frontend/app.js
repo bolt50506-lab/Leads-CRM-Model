@@ -61,7 +61,8 @@ async function editTag(id,name,color){try{await api('/tags/'+id,{method:'PATCH',
 async function addTag(){let n=prompt('Tag name');if(!n)return;try{let t=await api('/tags',{method:'POST',body:JSON.stringify({name:n,color:'#64748b'})});tags.push(t);render()}catch(e){toast(e.message)}}
 async function removeTag(id){if(!confirm('Delete this tag?'))return;try{await api('/tags/'+id,{method:'DELETE'});await loadData();render()}catch(e){toast(e.message)}}
 function wa(phone){let n=String(phone||'').replace(/\D/g,'');if(n.startsWith('0'))n='92'+n.slice(1);if(!n.startsWith('92'))n='92'+n;return n}
-function showNotifications(){if(!notifications.length){toast('No notifications');return}let unread=notifications.filter(n=>!n.read);alert(notifications.slice(0,8).map(n=>(n.read?'• ':'🔔 ')+n.text+' · '+new Date(n.createdAt).toLocaleString()).join('\n'));if(unread.length){api('/notifications/read',{method:'POST',body:JSON.stringify({ids:unread.map(n=>n.id)})}).then(()=>{notifications.forEach(n=>n.read=true);render()}).catch(()=>{})}}\nfunction logout(){token='';localStorage.removeItem('leadflow_token');me=null;leads=[];notifications=[];render()}
+function showNotifications(){if(!notifications.length){toast('No notifications');return}let unread=notifications.filter(n=>!n.read);alert(notifications.slice(0,8).map(n=>(n.read?'• ':'🔔 ')+n.text+' · '+new Date(n.createdAt).toLocaleString()).join('\n'));if(unread.length){api('/notifications/read',{method:'POST',body:JSON.stringify({ids:unread.map(n=>n.id)})}).then(()=>{notifications.forEach(n=>n.read=true);render()}).catch(()=>{})}}
+function logout(){token='';localStorage.removeItem('leadflow_token');me=null;leads=[];notifications=[];render()}
 async function boot(){
   render();
   if(!token)return;
