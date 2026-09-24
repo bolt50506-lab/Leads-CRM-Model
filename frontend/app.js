@@ -39,24 +39,25 @@ function normalizeImportRow(row){
   const key=s=>clean(s).toLowerCase().replace(/[ _-]+/g,'').replace(/[^a-z0-9]/g,'');
   const entries=Object.entries(row||{}).map(([k,v])=>({key:key(k),label:clean(k).toLowerCase(),value:clean(v)}));
   const nonEmpty=entries.filter(x=>x.value);
-  const find=(patterns)=>nonEmpty.find(x=>patterns.some(p=>p.test(x.key)||p.test(x.label)))?.value||'';
+  const scoreMatch=(x,p)=>p instanceof RegExp&&p.test(x.key);
+  const find=(patterns)=>{
+    let best=null,bestScore=-1;
+    for(const x of nonEmpty){
+      let score=0;
+      patterns.forEach((p,i)=>{if(scoreMatch(x,p)) score=Math.max(score,patterns.length-i)});
+      if(score>bestScore){best=x;bestScore=score}
+    }
+    return best?.value||'';
+  };
   const looksLikeEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v));
-  const looksLikePhone=v=>{
-    const s=clean(v); if(!s||s.includes('@')) return false;
-    const digits=s.replace(/\D/g,'');
-    return digits.length>=7&&digits.length<=16;
-  };
-  const looksLikeName=v=>{
-    const s=clean(v);
-    if(!s||s.length<2||s.length>120||looksLikeEmail(s)||looksLikePhone(s)) return false;
-    return /\p{L}/u.test(s) && !/^\d+$/.test(s);
-  };
-  let name=find([/^name$/, /fullname/, /leadname/, /customername/, /clientname/, /contactname/, /travellername/, /travelername/, /passengername/, /guestname/, /personname/, /customer/, /client/, /passenger/, /traveller/, /traveler/]);
+  const looksLikePhone=v=>{const s=clean(v);if(!s||s.includes('@'))return false;const digits=s.replace(/\D/g,'');return digits.length>=7&&digits.length<=16};
+  const looksLikeName=v=>{const s=clean(v);if(!s||s.length<2||s.length>120||looksLikeEmail(s)||looksLikePhone(s))return false;return /\p{L}/u.test(s)&&!/^\d+$/.test(s)};
+  let name=find([/^fullname$/, /^name$/, /^leadname$/, /^customername$/, /^clientname$/, /^contactname$/, /^passengername$/, /^guestname$/, /^personname$/, /^travellername$/, /^travelername$/, /givenname/, /^firstname$/, /^lastname$/, /surname/, /familyname/]);
   if(!looksLikeName(name)){
-    const first=find([/^firstname$/, /givenname/, /^first$/]),last=find([/^lastname$/, /surname/, /familyname/, /^last$/]);
+    const first=find([/^firstname$/, /^givenname$/, /^first$/]),last=find([/^lastname$/, /^surname$/, /^familyname$/, /^last$/]);
     name=[first,last].filter(Boolean).join(' ').trim();
   }
-  if(!looksLikeName(name)) name=nonEmpty.find(x=>/(name|customer|client|contact|passenger|travell?er)/.test(x.key)&&looksLikeName(x.value))?.value||'';
+  if(!looksLikeName(name)) name=nonEmpty.find(x=>/^(full)?name$|^(lead|customer|client|contact|passenger|travell?er|guest)name$/.test(x.key)&&looksLikeName(x.value))?.value||'';
   if(!looksLikeName(name)) name=nonEmpty.find(x=>looksLikeName(x.value))?.value||'';
 
   let phone=find([/^phone$/, /phonenumber/, /phoneno/, /phonecontact/, /^mobile$/, /mobilenumber/, /mobileno/, /cell/, /telephone/, /telnumber/, /contactnumber/, /contactno/, /whatsapp/, /whatsappnumber/]);
