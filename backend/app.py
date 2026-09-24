@@ -199,7 +199,7 @@ def bootstrap(db:Session=Depends(get_db), u=Depends(current_user)):
     tags=db.scalars(select(Tag).order_by(Tag.name)).all()
     stmt=select(Lead).order_by(Lead.created_at.desc())
     leads=db.scalars(stmt).unique().all()
-    return {'users':[user_out(x) for x in users], 'stages':[stage_out(x) for x in stages], 'tags':[tag_out(x) for x in tags], 'leads':[lead_out(x,db,u) for x in leads]}
+    return {'users':[user_out(x) for x in users], 'stages':[stage_out(x) for x in stages], 'tags':[tag_out(x) for x in tags], 'leads':[lead_out(x,db,u,False) for x in leads]}
 
 @app.get('/api/leads/{lead_id}/activities')
 def activities(lead_id:str, db:Session=Depends(get_db), u=Depends(current_user)):
