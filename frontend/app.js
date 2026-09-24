@@ -40,18 +40,32 @@ function normalizeImportRow(row){
   const entries=Object.entries(row||{}).map(([k,v])=>({key:key(k),label:clean(k).toLowerCase(),value:clean(v)}));
   const nonEmpty=entries.filter(x=>x.value);
   const find=(patterns)=>nonEmpty.find(x=>patterns.some(p=>p.test(x.key)||p.test(x.label)))?.value||'';
-  const looksLikePhone=v=>{const s=clean(v);if(!s||s.includes('@'))return false;const digits=s.replace(/\D/g,'');return digits.length>=7&&digits.length<=15&&/^[+()\d .-]+$/.test(s)};
   const looksLikeEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v));
-  const looksLikeName=v=>{const s=clean(v);if(!s||s.length<2||s.length>80||looksLikeEmail(s)||looksLikePhone(s))return false;return /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]{1,79}$/.test(s)};
+  const looksLikePhone=v=>{
+    const s=clean(v); if(!s||s.includes('@')) return false;
+    const digits=s.replace(/\D/g,'');
+    return digits.length>=7&&digits.length<=16;
+  };
+  const looksLikeName=v=>{
+    const s=clean(v);
+    if(!s||s.length<2||s.length>120||looksLikeEmail(s)||looksLikePhone(s)) return false;
+    return /\p{L}/u.test(s) && !/^\d+$/.test(s);
+  };
   let name=find([/^name$/, /fullname/, /leadname/, /customername/, /clientname/, /contactname/, /travellername/, /travelername/, /passengername/, /guestname/, /personname/, /customer/, /client/, /passenger/, /traveller/, /traveler/]);
-  if(!looksLikeName(name)){const first=find([/^firstname$/, /givenname/, /^first$/]),last=find([/^lastname$/, /surname/, /familyname/, /^last$/]);name=[first,last].filter(Boolean).join(' ').trim()}
-  if(!looksLikeName(name))name=nonEmpty.find(x=>/(name|customer|client|contact|passenger|travell?er)/.test(x.key)&&looksLikeName(x.value))?.value||'';
-  if(!looksLikeName(name))name=nonEmpty.find(x=>looksLikeName(x.value))?.value||'';
+  if(!looksLikeName(name)){
+    const first=find([/^firstname$/, /givenname/, /^first$/]),last=find([/^lastname$/, /surname/, /familyname/, /^last$/]);
+    name=[first,last].filter(Boolean).join(' ').trim();
+  }
+  if(!looksLikeName(name)) name=nonEmpty.find(x=>/(name|customer|client|contact|passenger|travell?er)/.test(x.key)&&looksLikeName(x.value))?.value||'';
+  if(!looksLikeName(name)) name=nonEmpty.find(x=>looksLikeName(x.value))?.value||'';
+
   let phone=find([/^phone$/, /phonenumber/, /phoneno/, /phonecontact/, /^mobile$/, /mobilenumber/, /mobileno/, /cell/, /telephone/, /telnumber/, /contactnumber/, /contactno/, /whatsapp/, /whatsappnumber/]);
-  if(!looksLikePhone(phone))phone=nonEmpty.find(x=>/(phone|mobile|cell|telephone|tel|whatsapp|contact)/.test(x.key)&&looksLikePhone(x.value))?.value||'';
-  if(!looksLikePhone(phone))phone=nonEmpty.find(x=>looksLikePhone(x.value))?.value||'';
+  if(!looksLikePhone(phone)) phone=nonEmpty.find(x=>/(phone|mobile|cell|telephone|tel|whatsapp|contact)/.test(x.key)&&looksLikePhone(x.value))?.value||'';
+  if(!looksLikePhone(phone)) phone=nonEmpty.find(x=>looksLikePhone(x.value))?.value||'';
+
   let email=find([/^email$/, /emailaddress/, /emailid/, /mailaddress/, /^e-mail/]);
-  if(!looksLikeEmail(email))email=nonEmpty.find(x=>looksLikeEmail(x.value))?.value||'';
+  if(!looksLikeEmail(email)) email=nonEmpty.find(x=>looksLikeEmail(x.value))?.value||'';
+
   const company=find([/^company$/, /companyname/, /^business$/, /businessname/, /organization/, /organisation/, /employer/]);
   const source=find([/^source$/, /leadsource/, /campaign/, /channel/, /medium/, /marketing/]);
   const stage=find([/^stage$/, /leadstage/, /status/]);
@@ -59,14 +73,25 @@ function normalizeImportRow(row){
   const agentid=find([/^agentid$/, /agentcode/, /employeeid/]);
   const tags=find([/^tags?$/, /labels?/, /categories/, /segments/]);
   const notes=find([/^notes?$/, /comments?/, /remarks/, /description/, /message/]);
-  const out={...row};if(name)out.name=name;if(phone)out.phone=phone;if(email)out.email=email;if(company)out.company=company;if(source)out.source=source;if(stage)out.stage=stage;if(assigneduser)out.assigneduser=assigneduser;if(agentid)out.agentid=agentid;if(tags)out.tags=tags;if(notes)out.notes=notes;return out;
+  const out={...row};
+  if(name)out.name=name;
+  if(phone)out.phone=phone;
+  if(email)out.email=email;
+  if(company)out.company=company;
+  if(source)out.source=source;
+  if(stage)out.stage=stage;
+  if(assigneduser)out.assigneduser=assigneduser;
+  if(agentid)out.agentid=agentid;
+  if(tags)out.tags=tags;
+  if(notes)out.notes=notes;
+  return out;
 }
 function normalizeImportRowLegacy(row){let o={};Object.entries(row).forEach(([k,v])=>o[k.toLowerCase().replace(/[ _-]/g,'')]=v);return o}
 function previewImport(rows,files){importRows=rows;let valid=0,errors=0;rows.forEach(row=>{let o=normalizeImportRow(row);if(o.name||o.phone||o.email)valid++;else errors++});let html=`<div class="preview"><div class="import-note"><b>${files.length}</b> file(s) · <b>${rows.length}</b> total rows · <b>${valid}</b> ready · <b>${errors}</b> errors</div><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Stage</th><th>Agent ID</th><th>Status</th></tr></thead><tbody>`;rows.slice(0,20).forEach((row,i)=>{let o=normalizeImportRow(row),ok=!!(o.name||o.phone||o.email);html+=`<tr><td>${i+1}</td><td>${esc(o.name||'')}</td><td>${esc(o.phone||'')}</td><td>${esc(o.email||'')}</td><td>${esc(o.stage||'New Leads')}</td><td>${esc(o.agentid||o.assigneduser||'')}</td><td class="${ok?'':'error'}">${ok?'Ready':'Missing name, phone and email'}</td></tr>`});html+='</tbody></table></div>';document.getElementById('importPreview').innerHTML=html;document.getElementById('importBtn').disabled=rows.length===0||errors===rows.length}
 async function parseWorkbook(file){
   let wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true}),out=[];
   wb.SheetNames.forEach(sheetName=>{
-    const matrix=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:''});if(!matrix.length)return;
+    const matrix=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:'',raw:false});if(!matrix.length)return;
     const pats=[/name|customer|client|contact|passenger|travell?er|guest/i,/phone|mobile|cell|telephone|tel|whatsapp/i,/email|e-mail|mail/i,/company|business|organization|employer/i,/source|campaign|channel|medium/i,/stage|status/i,/agent|owner|assigned/i,/tag|label|category/i,/note|comment|remark|description|message/i];
     let hi=0,best=-1;matrix.slice(0,15).forEach((row,i)=>{const score=row.filter(v=>pats.some(p=>p.test(String(v??'')))).length;if(score>best){best=score;hi=i}});
     const headers=(matrix[hi]||[]).map((h,i)=>String(h??'').replace(/\u00a0/g,' ').trim()||'Column '+(i+1));
