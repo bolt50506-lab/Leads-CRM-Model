@@ -35,18 +35,23 @@ function field(name,label,req,type='text'){return `<label>${label}<input name="$
 function importModal(){return `<div class="modalbg"><div class="modal wide"><div class="mhead"><div><h2>Import leads</h2><p>Append or update leads. Existing leads are never deleted.</p></div><button class="btn iconbtn" onclick="state.modal=null;render()">×</button></div><div class="drop" onclick="document.getElementById('file').click()">⇧ <strong>Choose Excel, CSV or ZIP</strong><span>ZIP may contain multiple .xlsx, .xls or .csv package files. Name is optional; email or phone is enough.</span><input id="file" type="file" accept=".xlsx,.xls,.csv,.zip" multiple onchange="readFiles(event)"></div><div id="importPreview"></div><div class="import-note">Matching priority: normalized email, then normalized phone. New rows are added; matching rows are updated without deleting unrelated CRM data.</div><div class="mfoot"><button class="btn" onclick="downloadTemplate()">⇩ Template</button><button class="btn" onclick="state.modal=null;render()">Cancel</button><button id="importBtn" class="btn primary" disabled onclick="finishImport()">Import Leads</button></div></div></div>`}
 let importRows=[];
 function normalizeImportRow(row){
-  const clean=s=>String(s??'').trim();
+  const clean=s=>String(s??'').replace(/\u00a0/g,' ').trim();
   const key=s=>clean(s).toLowerCase().replace(/[ _-]+/g,'').replace(/[^a-z0-9]/g,'');
-  const entries=Object.entries(row||{}).map(([k,v])=>({key:key(k),label:clean(k).toLowerCase(),value:clean(v)})).filter(x=>x.value);
-  const find=(patterns)=>entries.find(x=>patterns.some(p=>p.test(x.key)||p.test(x.label)))?.value||'';
-  const findMany=(patterns)=>entries.filter(x=>patterns.some(p=>p.test(x.key)||p.test(x.label))).map(x=>x.value).filter(Boolean);
-  let name=find([/^name$/, /fullname/, /leadname/, /customername/, /clientname/, /contactname/, /travellername/, /passengername/, /guestname/]);
-  if(!name){
-    const first=find([/^firstname$/, /givenname/, /first$/]), last=find([/^lastname$/, /surname/, /familyname/, /last$/]);
-    name=[first,last].filter(Boolean).join(' ').trim();
-  }
-  const phone=find([/^phone$/, /phonenumber/, /^mobile$/, /mobilenumber/, /cell/, /telephone/, /telnumber/, /contactnumber/, /whatsapp/, /whatsappnumber/]);
-  const email=find([/^email$/, /emailaddress/, /mailaddress/, /^e-mail/]);
+  const entries=Object.entries(row||{}).map(([k,v])=>({key:key(k),label:clean(k).toLowerCase(),value:clean(v)}));
+  const nonEmpty=entries.filter(x=>x.value);
+  const find=(patterns)=>nonEmpty.find(x=>patterns.some(p=>p.test(x.key)||p.test(x.label)))?.value||'';
+  const looksLikePhone=v=>{const s=clean(v);if(!s||s.includes('@'))return false;const digits=s.replace(/\D/g,'');return digits.length>=7&&digits.length<=15&&/^[+()\d .-]+$/.test(s)};
+  const looksLikeEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v));
+  const looksLikeName=v=>{const s=clean(v);if(!s||s.length<2||s.length>80||looksLikeEmail(s)||looksLikePhone(s))return false;return /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]{1,79}$/.test(s)};
+  let name=find([/^name$/, /fullname/, /leadname/, /customername/, /clientname/, /contactname/, /travellername/, /travelername/, /passengername/, /guestname/, /personname/, /customer/, /client/, /passenger/, /traveller/, /traveler/]);
+  if(!looksLikeName(name)){const first=find([/^firstname$/, /givenname/, /^first$/]),last=find([/^lastname$/, /surname/, /familyname/, /^last$/]);name=[first,last].filter(Boolean).join(' ').trim()}
+  if(!looksLikeName(name))name=nonEmpty.find(x=>/(name|customer|client|contact|passenger|travell?er)/.test(x.key)&&looksLikeName(x.value))?.value||'';
+  if(!looksLikeName(name))name=nonEmpty.find(x=>looksLikeName(x.value))?.value||'';
+  let phone=find([/^phone$/, /phonenumber/, /phoneno/, /phonecontact/, /^mobile$/, /mobilenumber/, /mobileno/, /cell/, /telephone/, /telnumber/, /contactnumber/, /contactno/, /whatsapp/, /whatsappnumber/]);
+  if(!looksLikePhone(phone))phone=nonEmpty.find(x=>/(phone|mobile|cell|telephone|tel|whatsapp|contact)/.test(x.key)&&looksLikePhone(x.value))?.value||'';
+  if(!looksLikePhone(phone))phone=nonEmpty.find(x=>looksLikePhone(x.value))?.value||'';
+  let email=find([/^email$/, /emailaddress/, /emailid/, /mailaddress/, /^e-mail/]);
+  if(!looksLikeEmail(email))email=nonEmpty.find(x=>looksLikeEmail(x.value))?.value||'';
   const company=find([/^company$/, /companyname/, /^business$/, /businessname/, /organization/, /organisation/, /employer/]);
   const source=find([/^source$/, /leadsource/, /campaign/, /channel/, /medium/, /marketing/]);
   const stage=find([/^stage$/, /leadstage/, /status/]);
@@ -54,22 +59,20 @@ function normalizeImportRow(row){
   const agentid=find([/^agentid$/, /agentcode/, /employeeid/]);
   const tags=find([/^tags?$/, /labels?/, /categories/, /segments/]);
   const notes=find([/^notes?$/, /comments?/, /remarks/, /description/, /message/]);
-  const out={...row};
-  if(name)out.Name=name;
-  if(phone)out.Phone=phone;
-  if(email)out.Email=email;
-  if(company)out.Company=company;
-  if(source)out.Source=source;
-  if(stage)out.Stage=stage;
-  if(assigneduser)out['Assigned User']=assigneduser;
-  if(agentid)out.AgentID=agentid;
-  if(tags)out.Tags=tags;
-  if(notes)out.Notes=notes;
-  return out;
+  const out={...row};if(name)out.name=name;if(phone)out.phone=phone;if(email)out.email=email;if(company)out.company=company;if(source)out.source=source;if(stage)out.stage=stage;if(assigneduser)out.assigneduser=assigneduser;if(agentid)out.agentid=agentid;if(tags)out.tags=tags;if(notes)out.notes=notes;return out;
 }
 function normalizeImportRowLegacy(row){let o={};Object.entries(row).forEach(([k,v])=>o[k.toLowerCase().replace(/[ _-]/g,'')]=v);return o}
 function previewImport(rows,files){importRows=rows;let valid=0,errors=0;rows.forEach(row=>{let o=normalizeImportRow(row);if(o.name||o.phone||o.email)valid++;else errors++});let html=`<div class="preview"><div class="import-note"><b>${files.length}</b> file(s) · <b>${rows.length}</b> total rows · <b>${valid}</b> ready · <b>${errors}</b> errors</div><table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Stage</th><th>Agent ID</th><th>Status</th></tr></thead><tbody>`;rows.slice(0,20).forEach((row,i)=>{let o=normalizeImportRow(row),ok=!!(o.name||o.phone||o.email);html+=`<tr><td>${i+1}</td><td>${esc(o.name||'')}</td><td>${esc(o.phone||'')}</td><td>${esc(o.email||'')}</td><td>${esc(o.stage||'New Leads')}</td><td>${esc(o.agentid||o.assigneduser||'')}</td><td class="${ok?'':'error'}">${ok?'Ready':'Missing name, phone and email'}</td></tr>`});html+='</tbody></table></div>';document.getElementById('importPreview').innerHTML=html;document.getElementById('importBtn').disabled=rows.length===0||errors===rows.length}
-async function parseWorkbook(file){let wb=XLSX.read(await file.arrayBuffer(),{type:'array'});let out=[];wb.SheetNames.forEach(name=>{out=out.concat(XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}))});return out}
+async function parseWorkbook(file){
+  let wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true}),out=[];
+  wb.SheetNames.forEach(sheetName=>{
+    const matrix=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:''});if(!matrix.length)return;
+    const pats=[/name|customer|client|contact|passenger|travell?er|guest/i,/phone|mobile|cell|telephone|tel|whatsapp/i,/email|e-mail|mail/i,/company|business|organization|employer/i,/source|campaign|channel|medium/i,/stage|status/i,/agent|owner|assigned/i,/tag|label|category/i,/note|comment|remark|description|message/i];
+    let hi=0,best=-1;matrix.slice(0,15).forEach((row,i)=>{const score=row.filter(v=>pats.some(p=>p.test(String(v??'')))).length;if(score>best){best=score;hi=i}});
+    const headers=(matrix[hi]||[]).map((h,i)=>String(h??'').replace(/\u00a0/g,' ').trim()||'Column '+(i+1));
+    matrix.slice(hi+1).forEach(values=>{if(!values.some(v=>String(v??'').trim()))return;const row={};headers.forEach((h,i)=>row[h]=values[i]??'');out.push(row)});
+  });return out;
+}
 async function readFiles(e){let files=[...e.target.files];let rows=[];try{for(const f of files){if(f.name.toLowerCase().endsWith('.zip')){let zip=await JSZip.loadAsync(f);for(const path of Object.keys(zip.files)){if(zip.files[path].dir||!(/\.(xlsx|xls|csv)$/i.test(path)))continue;let blob=await zip.files[path].async('blob');rows=rows.concat(await parseWorkbook(new File([blob],path.split('/').pop())))} }else{rows=rows.concat(await parseWorkbook(f))}}previewImport(rows,files)}catch(err){toast('Could not read the selected files: '+err.message)}}
 async function finishImport(){try{let r=await api('/leads/import',{method:'POST',body:JSON.stringify({rows:importRows})});await loadData();state.modal=null;render();toast(`Import complete · ${r.added} added · ${r.updated} updated · ${r.skipped} skipped`)}catch(e){toast(e.message)}}
 function downloadTemplate(){let rows=[{Name:'Example Lead',Phone:'03001234567',Email:'example@email.com',Company:'Example Company',Source:'Meta Ads',Stage:'New Leads','Assigned User':'Ali Khan',Tags:'Hot, VIP',Notes:'Example note','Created Date':new Date().toISOString().slice(0,10)}];let ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Leads');XLSX.writeFile(wb,'leadflow-import-template.xlsx')}
