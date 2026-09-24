@@ -250,7 +250,7 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
     stats={'added':0,'updated':0,'skipped':0,'errors':[]}
     stages={x.name.strip().lower():x for x in db.scalars(select(Stage).where(Stage.active==True)).all()}
     users={x.name.strip().lower():x for x in db.scalars(select(User).where(User.active==True)).all()}
-    users.update({x.agent_code.strip().lower():x for x in db.scalars(select(User).where(User.active==True)).all()})
+    users.update({str(x.agent_code or '').strip().lower():x for x in db.scalars(select(User).where(User.active==True)).all() if str(x.agent_code or '').strip()})
     tags={x.name.strip().lower():x for x in db.scalars(select(Tag)).all()}
     existing_by_email={normalize_email(x.email):x for x in db.scalars(select(Lead)).all() if normalize_email(x.email)}
     existing_by_phone={normalize_phone(x.phone):x for x in db.scalars(select(Lead)).all() if normalize_phone(x.phone)}
@@ -258,7 +258,10 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
     default_stage=next(iter(stages.values()),None)
     if not default_stage: raise HTTPException(400,'No active stage exists')
     for i,row in enumerate(p.rows,1):
-        norm={normalize_key(k):v for k,v in row.items()}
+        try:
+            if not isinstance(row, dict):
+                raise ValueError('Spreadsheet row is not an object')
+            norm={normalize_key(k):v for k,v in row.items()}
         name=str(norm.get('name','')).strip(); phone=normalize_phone(str(norm.get('phone','')).strip()); email=normalize_email(str(norm.get('email','')).strip())
         if not (name or phone or email): stats['skipped']+=1; stats['errors'].append({'row':i,'message':'At least name, phone, or email is required'}); continue
         key=f'e:{email}' if email else f'p:{phone}' if phone else f'n:{name.lower()}'
@@ -278,8 +281,8 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
         source=str(norm.get('source','Import') or '').strip()[:100] or 'Import'
         notes=str(norm.get('notes','') or '').strip()
         vals=dict(name=name,phone=phone,email=email,company=company,source=source,notes=notes,stage_id=st.id,assigned_user_id=owner.id if owner else u.id)
-        if existing:
-            # Only overwrite fields supplied by the incoming row; preserve existing data otherwise.
+            if existing:
+                # Only overwrite fields supplied by the incoming row; preserve existing data otherwise.
             for k,v in vals.items():
                 if v not in ('',None) or k in {'stage_id','assigned_user_id'}: setattr(existing,k,v)
             if tag_objs: existing.tags=tag_objs
@@ -291,6 +294,10 @@ def import_leads(p:ImportIn, db:Session=Depends(get_db), u=Depends(current_user)
             l=Lead(id='l_'+secrets.token_hex(10),**vals); l.tags=tag_objs; db.add(l); db.flush(); db.add(Activity(id='a_'+secrets.token_hex(8),lead_id=l.id,user_id=u.id,text='Imported from file')); stats['added']+=1
             if email: existing_by_email[email]=l
             if phone: existing_by_phone[phone]=l
+        except Exception as exc:
+            db.rollback()
+            stats['skipped']+=1
+            stats['errors'].append({'row':i,'message':f'{type(exc).__name__}: {exc}'})
     try:
         db.commit()
     except Exception as exc:
