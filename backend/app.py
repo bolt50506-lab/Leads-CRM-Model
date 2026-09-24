@@ -457,8 +457,10 @@ def user_out(u): return {'id':u.id,'agentId':u.agent_code,'name':u.name,'email':
 def stage_out(s): return {'id':s.id,'name':s.name,'color':s.color,'position':s.position,'active':s.active}
 def tag_out(t): return {'id':t.id,'name':t.name,'color':t.color}
 def activity_out(a,db): return {'id':a.id,'text':a.text,'createdAt':a.created_at.isoformat() if a.created_at else '', 'user':user_out(db.get(User,a.user_id))}
-def lead_out(l,db,u):
-    acts=db.scalars(select(Activity).where(Activity.lead_id==l.id).order_by(Activity.created_at.desc())).all()
+def lead_out(l,db,u,include_activities=True):
+    acts=[]
+    if include_activities:
+        acts=db.scalars(select(Activity).where(Activity.lead_id==l.id).order_by(Activity.created_at.desc())).all()
     return {'id':l.id,'name':l.name,'phone':l.phone,'email':l.email,'company':l.company,'source':l.source,'notes':l.notes,'stageId':l.stage_id,'assignedUserId':l.assigned_user_id,'tagIds':[t.id for t in l.tags], 'createdAt':l.created_at.isoformat() if l.created_at else '', 'updatedAt':l.updated_at.isoformat() if l.updated_at else '', 'lastActivityAt':l.last_activity_at.isoformat() if l.last_activity_at else '', 'activities':[activity_out(a,db) for a in acts]}
 def ensure_refs(db,stage_id,user_id,tag_ids):
     if not db.get(Stage,stage_id) or not db.get(User,user_id): raise HTTPException(400,'Invalid stage or user')
