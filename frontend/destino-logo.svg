@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 393" role="img" aria-labelledby="title desc">
+<title>Destino Travels</title><desc>Destino Travels logo with a tropical palm, sun and ocean waves.</desc>
+<rect width="1200" height="393" fill="none"/>
+<g transform="translate(8 18)">
+  <rect x="0" y="0" width="270" height="350" rx="135" fill="none" stroke="#C9A33A" stroke-width="13"/>
+  <path d="M15 239 C73 198 129 205 183 241 L258 304 L258 350 L15 350 Z" fill="#0FA9B5"/>
+  <path d="M15 286 C54 267 76 281 105 293 C137 306 164 313 193 302 C218 293 236 285 258 292" fill="none" stroke="#C9A33A" stroke-width="6"/>
+  <path d="M15 320 C52 300 75 313 104 325 C135 338 164 344 192 333 C220 322 239 314 258 322" fill="none" stroke="#C9A33A" stroke-width="6"/>
+  <circle cx="65" cy="180" r="23" fill="#C9A33A"/>
+  <g stroke="#C9A33A" stroke-width="7" stroke-linecap="round">
+    <path d="M65 144v-14M65 216v14M29 180H15M115 180h-14M40 155l-10-10M90 205l10 10M90 155l10-10M40 205l-10 10"/>
+  </g>
+  <path d="M137 275 C134 215 133 164 136 122 C139 88 151 63 172 51" fill="none" stroke="#C9A33A" stroke-width="9" stroke-linecap="round"/>
+  <path d="M172 51 C142 30 113 31 83 42 C105 51 119 63 129 77 C141 65 156 57 172 51Z" fill="#C9A33A"/>
+  <path d="M174 51 C198 29 229 30 258 42 C235 50 222 63 213 77 C201 64 188 56 174 51Z" fill="#C9A33A"/>
+  <path d="M170 54 C166 31 173 17 190 5 C194 25 190 40 181 54Z" fill="#C9A33A"/>
+  <path d="M171 57 C149 49 129 53 111 65 C131 68 148 77 161 88 C164 75 168 65 171 57Z" fill="#C9A33A"/>
+  <path d="M174 57 C196 48 217 53 235 65 C216 69 199 77 185 88 C183 75 179 65 174 57Z" fill="#C9A33A"/>
+  <path d="M112 196 C136 164 166 148 200 153 C221 156 240 168 255 188" fill="none" stroke="#C9A33A" stroke-width="8" stroke-linecap="round"/>
+</g>
+<g fill="#C9A33A" font-family="Arial, Helvetica, sans-serif" font-weight="800" letter-spacing="3">
+  <text x="315" y="160" font-size="116">DESTINO</text>
+  <text x="315" y="285" font-size="116">TRAVELS</text>
+</g>
+</svg>
