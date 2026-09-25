@@ -207,6 +207,11 @@ def activities(lead_id:str, db:Session=Depends(get_db), u=Depends(current_user))
     acts=db.scalars(select(Activity).where(Activity.lead_id==l.id).order_by(Activity.created_at.desc())).all()
     return [activity_out(a,db) for a in acts]
 
+@app.get('/api/activities')
+def all_activities(db:Session=Depends(get_db), u=Depends(current_user)):
+    rows=db.execute(select(Activity, Lead).join(Lead, Activity.lead_id==Lead.id).order_by(Activity.created_at.desc())).all()
+    return [activity_out_global(a,l,db) for a,l in rows]
+
 @app.post('/api/leads/{lead_id}/activities')
 def add_activity(lead_id:str,payload:ActivityIn,db:Session=Depends(get_db),u=Depends(current_user)):
     l=require_lead(db.get(Lead,lead_id),u)
@@ -457,6 +462,10 @@ def user_out(u): return {'id':u.id,'agentId':u.agent_code,'name':u.name,'email':
 def stage_out(s): return {'id':s.id,'name':s.name,'color':s.color,'position':s.position,'active':s.active}
 def tag_out(t): return {'id':t.id,'name':t.name,'color':t.color}
 def activity_out(a,db): return {'id':a.id,'text':a.text,'createdAt':a.created_at.isoformat() if a.created_at else '', 'user':user_out(db.get(User,a.user_id))}
+def activity_out_global(a,l,db):
+    out=activity_out(a,db)
+    out['leadId']=l.id; out['leadName']=l.name; out['leadPhone']=l.phone
+    return out
 def lead_out(l,db,u,include_activities=True):
     acts=[]
     if include_activities:
