@@ -145,3 +145,19 @@ body{font-size:15px;line-height:1.55}
 .login-card .field{margin-bottom:15px}
 .login-card .field input{background:var(--panel2)}
 @media(max-width:650px){.login-shell{padding:14px}.login-card{padding:24px 20px}.login-brand .brand-logo{max-width:280px}}
+
+
+/* Notifications and global activity logs */
+.notification-modal{width:760px}
+.notification-list{padding:8px 0;max-height:62vh;overflow:auto}
+.notification-item{width:100%;display:flex;gap:12px;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);padding:14px 22px;cursor:pointer}
+.notification-item:hover{background:var(--soft)}
+.notification-item.unread{background:color-mix(in srgb,var(--accent) 6%,var(--panel));}
+.notification-item b{display:block;font-size:13px;font-weight:700;line-height:1.45}
+.notification-item small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.notification-icon{width:30px;height:30px;border-radius:9px;background:var(--soft);display:grid;place-items:center;flex:0 0 auto;color:var(--accent);font-weight:800}
+.activity-log-table tbody tr{cursor:pointer}
+.activity-log-table tbody tr:hover{background:var(--soft)}
+.activity-log-table td{vertical-align:top}
+.activity-log-table td:nth-child(1){color:var(--muted);font-size:12px}
+.activity-log-table td:nth-child(4){white-space:normal;min-width:280px}
